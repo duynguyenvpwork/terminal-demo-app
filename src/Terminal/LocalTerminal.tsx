@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import clipboard from 'clipboardy';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { io, Socket } from "socket.io-client";
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { Terminal } from 'xterm';
@@ -46,6 +47,28 @@ function LocalTerminal() {
       console.log(data, data.key)
       term.write(data);
       socket.emit("data", data.key);
+    })
+    term.attachCustomKeyEventHandler((key: KeyboardEvent) => {
+      console.log(key.code, key.ctrlKey, key.shiftKey)
+      if (key.code === 'Insert') {
+        if (key.shiftKey) {
+          clipboard.read().then(cmd => {
+            clipboard.write('')
+            const cmdArr = Array.from(cmd)
+            cmdArr.forEach(c => {
+              socket.emit("data", c);
+            })
+          })
+          return false;
+        }
+        if (key.ctrlKey) {
+          if (term.hasSelection()) {
+            const selectedText = term.getSelection()
+            clipboard.write(selectedText)
+          }
+        }
+      }
+      return true;
     })
   }, [socket, term])
   return (

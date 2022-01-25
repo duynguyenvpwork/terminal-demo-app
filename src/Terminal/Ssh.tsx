@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useState } from 'react';
+import clipboard from 'clipboardy';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { io, Socket } from "socket.io-client";
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { Terminal } from 'xterm';
@@ -39,14 +40,33 @@ function Ssh() {
   useEffect(() => {
     if (!term || !socket) return
     socket.on("message", (data: any) => {
-      console.log("message from server =====>", data);
       var uint8View = new Uint8Array(data);
       term.write(uint8View);
     });
     term.onKey((data: any) => {
-      console.log(data, data.key)
       term.write(data);
       socket.emit("data", data.key);
+    })
+    term.attachCustomKeyEventHandler((key: KeyboardEvent) => {
+      if (key.code === 'Insert') {
+        if (key.shiftKey) {
+          clipboard.read().then(cmd => {
+            clipboard.write('')
+            const cmdArr = Array.from(cmd)
+            cmdArr.forEach(c => {
+              socket.emit("data", c);
+            })
+          })
+          return false;
+        }
+        if (key.ctrlKey) {
+          if (term.hasSelection()) {
+            const selectedText = term.getSelection()
+            clipboard.write(selectedText)
+          }
+        }
+      }
+      return true;
     })
   }, [socket, term])
   return (
