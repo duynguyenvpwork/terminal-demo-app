@@ -1,5 +1,5 @@
 import clipboard from 'clipboardy';
-import { useEffect, useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { io, Socket } from "socket.io-client";
 import { DefaultEventsMap } from 'socket.io/dist/typed-events';
 import { Terminal } from 'xterm';
@@ -8,6 +8,7 @@ import styles from "./Terminal.module.css"
 function Ssh() {
   const [term, setTerm] = useState<Terminal>()
   const [socket, setSocket] = useState<Socket<DefaultEventsMap, DefaultEventsMap>>()
+  const eventRef = useRef<string>()
   useLayoutEffect(() => {
     const terminalDom = document.getElementById('terminal')
     if (!terminalDom) return
@@ -19,7 +20,7 @@ function Ssh() {
     term.clear()
     term.focus()
     term.options = {
-      fontSize: 16,
+      fontSize: 15,
       convertEol: true
     }
     setTerm(term);
@@ -50,12 +51,15 @@ function Ssh() {
     term.attachCustomKeyEventHandler((key: KeyboardEvent) => {
       if (key.code === 'Insert') {
         if (key.shiftKey) {
+          eventRef.current = "paste"
           clipboard.read().then(cmd => {
             clipboard.write('')
             const cmdArr = Array.from(cmd)
             cmdArr.forEach(c => {
               socket.emit("data", c);
             })
+          }).finally(() => {
+            eventRef.current = undefined
           })
           return false;
         }
@@ -68,6 +72,21 @@ function Ssh() {
       }
       return true;
     })
+    if (!!term.textarea) {
+      term.textarea.onpaste = (ev) => {
+        if (eventRef.current !== "paste") {
+          clipboard.read().then(cmd => {
+            clipboard.write('')
+            const cmdArr = Array.from(cmd)
+            cmdArr.forEach(c => {
+              socket.emit("data", c);
+            })
+          }).finally(() => {
+            eventRef.current = undefined
+          })
+        }
+      }
+    }
   }, [socket, term])
   return (
     <div className={styles.terminal} id="terminal"></div>
